@@ -1506,54 +1506,80 @@ const Home = () => {
         const newMode = cameraMode === 'user' ? 'environment' : 'user';
 
         try {
-            // Get new stream with the new facingMode
+            // 1. Get existing tracks
+            const currentTracks = localStreamRef.current.getTracks();
+            const audioTrack = currentTracks.find(t => t.kind === 'audio');
+            const videoTrack = currentTracks.find(t => t.kind === 'video');
+
+            // 2. Stop old video track (essential for many mobile devices to release hardware)
+            if (videoTrack) {
+                videoTrack.stop();
+            }
+
+            // 3. Request new stream with the new facingMode
+            // We use { ideal } to avoid OverconstrainedError if 'environment' is not exactly matched
             const newStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: newMode },
-                audio: true // Keep audio
+                video: { facingMode: { ideal: newMode } },
+                audio: false // Don't request audio again to avoid hardware conflicts/glitches
             });
 
             const newVideoTrack = newStream.getVideoTracks()[0];
-            const newAudioTrack = newStream.getAudioTracks()[0];
-
-            // Ensure current mute/video-off states are applied to the new tracks
+            
+            // 4. Update the enabled state based on current UI toggle
             newVideoTrack.enabled = isVideoEnabled;
-            newAudioTrack.enabled = !isMicMuted;
 
-            // Replace tracks in PeerConnection for the remote user
+            // 5. Replace the track in the peer connection for the remote user
             if (peerConnectionRef.current) {
                 const senders = peerConnectionRef.current.getSenders();
                 const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
-
                 if (videoSender) {
                     await videoSender.replaceTrack(newVideoTrack);
                 }
-                if (audioSender) {
-                    await audioSender.replaceTrack(newAudioTrack);
-                }
             }
 
-            // Stop old tracks to release camera/mic
-            if (localStreamRef.current) {
-                localStreamRef.current.getTracks().forEach(track => track.stop());
+            // 6. Create a new local stream with the new video track and PRESERVED audio track
+            const combinedStream = new MediaStream([newVideoTrack]);
+            if (audioTrack) {
+                combinedStream.addTrack(audioTrack);
             }
 
-            // Update refs and state
-            localStreamRef.current = newStream;
-            setLocalStream(newStream);
+            // 7. Update refs and state
+            localStreamRef.current = combinedStream;
+            setLocalStream(combinedStream);
             setCameraMode(newMode);
 
-            // Update local video element directly
+            // 8. Update local video element directly
             if (localVideoRef.current) {
-                localVideoRef.current.srcObject = newStream;
+                localVideoRef.current.srcObject = combinedStream;
             }
         } catch (err) {
             console.error('Error switching camera:', err);
-            if (err.name === 'OverconstrainedError') {
-                alert('The requested camera mode is not available on this device.');
-            } else {
-                alert('Could not switch camera. Make sure you have multiple cameras and permissions are granted.');
+            
+            // Fallback recovery: try to restart the original camera mode
+            try {
+                const restartStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: cameraMode } },
+                    audio: false
+                });
+                const restartVideoTrack = restartStream.getVideoTracks()[0];
+                const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+                
+                const recoveredStream = new MediaStream([restartVideoTrack]);
+                if (audioTrack) recoveredStream.addTrack(audioTrack);
+                
+                localStreamRef.current = recoveredStream;
+                setLocalStream(recoveredStream);
+                if (localVideoRef.current) localVideoRef.current.srcObject = recoveredStream;
+                
+                if (peerConnectionRef.current) {
+                    const videoSender = peerConnectionRef.current.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (videoSender) await videoSender.replaceTrack(restartVideoTrack);
+                }
+            } catch (restartErr) {
+                console.error('Recovery failed:', restartErr);
             }
+
+            alert('Could not switch camera. This device may not support the back camera or permissions are restricted.');
         }
     };
     // ─────────────────────────────────────────────────────────────────────────
