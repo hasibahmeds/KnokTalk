@@ -2858,7 +2858,7 @@ const Home = () => {
                                         className="confirm-btn no"
                                         onClick={() => setConfirmDialog({ show: false, message: '', onConfirm: null, icon: null, isAlert: false })}
                                     >
-                                        N
+                                        No
                                     </button>
                                 </>
                             )}
