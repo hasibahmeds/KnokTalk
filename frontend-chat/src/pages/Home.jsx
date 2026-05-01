@@ -10,6 +10,7 @@ import {
     FiVideo, FiVideoOff, FiMicOff, FiPhoneOff, FiPhone,
     FiChevronDown, FiChevronUp, FiPhoneIncoming, FiPhoneCall, FiCornerUpLeft
 } from 'react-icons/fi';
+import { HiArrowPathRoundedSquare } from "react-icons/hi2";
 import { PiPlayCircleDuotone, PiPauseCircleDuotone } from "react-icons/pi";
 import EmojiPicker from '../components/EmojiPicker';
 import './Home.css';
@@ -152,6 +153,7 @@ const Home = () => {
     const [remoteStream, setRemoteStream] = useState(null);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [isMicMuted, setIsMicMuted] = useState(false);
+    const [cameraMode, setCameraMode] = useState('user'); // 'user' (front) | 'environment' (back)
     const [activeCallUser, setActiveCallUser] = useState(null);
     const [callDuration, setCallDuration] = useState(0);
     const [showHeaderDropdown, setShowHeaderDropdown] = useState(false);
@@ -288,7 +290,7 @@ const Home = () => {
         const fetchUsers = async () => {
             try {
                 setLoading(prev => ({ ...prev, users: true }));
-                const response = await fetch(`http://localhost:5000/api/users/all/${currentUser.uid}`);
+                const response = await fetch(`https://knoktalkend.onrender.com/api/users/all/${currentUser.uid}`);
                 const data = await response.json();
                 setUsers(data);
             } catch (error) {
@@ -307,7 +309,7 @@ const Home = () => {
         const fetchChats = async () => {
             try {
                 setLoading(prev => ({ ...prev, chats: true }));
-                const response = await fetch(`http://localhost:5000/api/chats/${currentUser.uid}`);
+                const response = await fetch(`https://knoktalkend.onrender.com/api/chats/${currentUser.uid}`);
                 const data = await response.json();
                 setChats(data);
             } catch (error) {
@@ -327,7 +329,7 @@ const Home = () => {
             if (selectedChat) {
                 try {
                     setLoading(prev => ({ ...prev, messages: true }));
-                    const response = await fetch(`http://localhost:5000/api/messages/${selectedChat._id}`);
+                    const response = await fetch(`https://knoktalkend.onrender.com/api/messages/${selectedChat._id}`);
                     const data = await response.json();
                     setMessages(data);
 
@@ -497,7 +499,7 @@ const Home = () => {
         const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
 
         try {
-            const response = await fetch('http://localhost:5000/api/messages', {
+            const response = await fetch('https://knoktalkend.onrender.com/api/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -601,7 +603,7 @@ const Home = () => {
             const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
 
             try {
-                const response = await fetch('http://localhost:5000/api/messages', {
+                const response = await fetch('https://knoktalkend.onrender.com/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -652,7 +654,7 @@ const Home = () => {
         const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
 
         try {
-            const response = await fetch('http://localhost:5000/api/messages/bulk-delete', {
+            const response = await fetch('https://knoktalkend.onrender.com/api/messages/bulk-delete', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ messageIds: idsToDelete })
@@ -692,7 +694,7 @@ const Home = () => {
 
         try {
             const response = await fetch(
-                `http://localhost:5000/api/messages/chat/${selectedChat._id}/user/${currentUser.uid}`,
+                `https://knoktalkend.onrender.com/api/messages/chat/${selectedChat._id}/user/${currentUser.uid}`,
                 {
                     method: 'DELETE'
                 }
@@ -701,7 +703,7 @@ const Home = () => {
             const data = await response.json();
             if (data.success) {
                 const messagesResponse = await fetch(
-                    `http://localhost:5000/api/messages/${selectedChat._id}`
+                    `https://knoktalkend.onrender.com/api/messages/${selectedChat._id}`
                 );
                 const messagesData = await messagesResponse.json();
                 setMessages(messagesData);
@@ -720,7 +722,7 @@ const Home = () => {
         const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
 
         try {
-            const response = await fetch(`http://localhost:5000/api/messages/edit/${messageId}`, {
+            const response = await fetch(`https://knoktalkend.onrender.com/api/messages/edit/${messageId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: editContent })
@@ -753,7 +755,7 @@ const Home = () => {
     // Send friend request
     const handleSendFriendRequest = async (user) => {
         try {
-            await fetch('http://localhost:5000/api/users/friend-request', {
+            await fetch('https://knoktalkend.onrender.com/api/users/friend-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -770,7 +772,7 @@ const Home = () => {
     // Accept friend request
     const handleAcceptRequest = async (requestId) => {
         try {
-            const response = await fetch('http://localhost:5000/api/users/accept-request', {
+            const response = await fetch('https://knoktalkend.onrender.com/api/users/accept-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -782,7 +784,7 @@ const Home = () => {
             const data = await response.json();
             if (data.success) {
                 fetchDbUser(currentUser.uid);
-                const chatResponse = await fetch(`http://localhost:5000/api/chats/${currentUser.uid}`);
+                const chatResponse = await fetch(`https://knoktalkend.onrender.com/api/chats/${currentUser.uid}`);
                 const chatData = await chatResponse.json();
                 setChats(chatData);
             }
@@ -794,7 +796,7 @@ const Home = () => {
     // Reject friend request
     const handleRejectRequest = async (requestId) => {
         try {
-            await fetch('http://localhost:5000/api/users/reject-request', {
+            await fetch('https://knoktalkend.onrender.com/api/users/reject-request', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -811,7 +813,7 @@ const Home = () => {
     // Check if user is blocked
     const checkBlockedStatus = async (otherUserUid) => {
         try {
-            const response = await fetch(`http://localhost:5000/api/users/is-blocked/${currentUser.uid}/${otherUserUid}`);
+            const response = await fetch(`https://knoktalkend.onrender.com/api/users/is-blocked/${currentUser.uid}/${otherUserUid}`);
             const data = await response.json();
             setIsBlocked(data.isBlocked);
         } catch (error) {
@@ -825,7 +827,7 @@ const Home = () => {
         if (!otherUser) return;
 
         try {
-            await fetch('http://localhost:5000/api/users/block', {
+            await fetch('https://knoktalkend.onrender.com/api/users/block', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -846,7 +848,7 @@ const Home = () => {
         if (!otherUser) return;
 
         try {
-            await fetch('http://localhost:5000/api/users/unblock', {
+            await fetch('https://knoktalkend.onrender.com/api/users/unblock', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -944,7 +946,7 @@ const Home = () => {
         for (const item of imagesToSend) {
             const base64 = item.preview.split(',')[1];
             try {
-                const response = await fetch('http://localhost:5000/api/upload', {
+                const response = await fetch('https://knoktalkend.onrender.com/api/upload', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ image: base64 })
@@ -955,7 +957,7 @@ const Home = () => {
                 if (data.url) {
                     const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
 
-                    const msgResponse = await fetch('http://localhost:5000/api/messages', {
+                    const msgResponse = await fetch('https://knoktalkend.onrender.com/api/messages', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -989,7 +991,7 @@ const Home = () => {
             const base64 = reader.result.split(',')[1];
 
             try {
-                const response = await fetch('http://localhost:5000/api/upload', {
+                const response = await fetch('https://knoktalkend.onrender.com/api/upload', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ image: base64 })
@@ -1000,7 +1002,7 @@ const Home = () => {
                 if (data.url) {
                     const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
 
-                    const msgResponse = await fetch('http://localhost:5000/api/messages', {
+                    const msgResponse = await fetch('https://knoktalkend.onrender.com/api/messages', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify({
@@ -1033,7 +1035,7 @@ const Home = () => {
             const newTerm = chatSearchTerm + emoji;
             setChatSearchTerm(newTerm);
             // Manually trigger the search logic since state update is async
-            fetch(`http://localhost:5000/api/messages/${selectedChat._id}/search?q=${encodeURIComponent(newTerm)}`)
+            fetch(`https://knoktalkend.onrender.com/api/messages/${selectedChat._id}/search?q=${encodeURIComponent(newTerm)}`)
                 .then(res => res.json())
                 .then(data => {
                     setSearchResults(data);
@@ -1108,7 +1110,7 @@ const Home = () => {
             return;
         }
         try {
-            const response = await fetch('http://localhost:5000/api/users/remove-friend', {
+            const response = await fetch('https://knoktalkend.onrender.com/api/users/remove-friend', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -1119,7 +1121,7 @@ const Home = () => {
             const data = await response.json();
             if (data.success) {
                 fetchDbUser(currentUser.uid);
-                const chatResponse = await fetch(`http://localhost:5000/api/chats/${currentUser.uid}`);
+                const chatResponse = await fetch(`https://knoktalkend.onrender.com/api/chats/${currentUser.uid}`);
                 const chatData = await chatResponse.json();
                 setChats(chatData);
                 if (selectedChat) {
@@ -1164,7 +1166,7 @@ const Home = () => {
         }
 
         try {
-            const response = await fetch(`http://localhost:5000/api/messages/${selectedChat._id}/search?q=${encodeURIComponent(term)}`);
+            const response = await fetch(`https://knoktalkend.onrender.com/api/messages/${selectedChat._id}/search?q=${encodeURIComponent(term)}`);
             const data = await response.json();
             setSearchResults(data);
             setCurrentSearchIndex(0);
@@ -1306,6 +1308,7 @@ const Home = () => {
         setRemoteStream(null);
         setIsVideoEnabled(true);
         setIsMicMuted(false);
+        setCameraMode('user');
         setActiveCallUser(null);
         setCallDuration(0);
     };
@@ -1493,6 +1496,63 @@ const Home = () => {
             if (audioTrack) {
                 audioTrack.enabled = !audioTrack.enabled;
                 setIsMicMuted(!audioTrack.enabled);
+            }
+        }
+    };
+
+    const switchCamera = async () => {
+        if (!localStreamRef.current || callState === 'idle') return;
+
+        const newMode = cameraMode === 'user' ? 'environment' : 'user';
+
+        try {
+            // Get new stream with the new facingMode
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: newMode },
+                audio: true // Keep audio
+            });
+
+            const newVideoTrack = newStream.getVideoTracks()[0];
+            const newAudioTrack = newStream.getAudioTracks()[0];
+
+            // Ensure current mute/video-off states are applied to the new tracks
+            newVideoTrack.enabled = isVideoEnabled;
+            newAudioTrack.enabled = !isMicMuted;
+
+            // Replace tracks in PeerConnection for the remote user
+            if (peerConnectionRef.current) {
+                const senders = peerConnectionRef.current.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                const audioSender = senders.find(s => s.track && s.track.kind === 'audio');
+
+                if (videoSender) {
+                    await videoSender.replaceTrack(newVideoTrack);
+                }
+                if (audioSender) {
+                    await audioSender.replaceTrack(newAudioTrack);
+                }
+            }
+
+            // Stop old tracks to release camera/mic
+            if (localStreamRef.current) {
+                localStreamRef.current.getTracks().forEach(track => track.stop());
+            }
+
+            // Update refs and state
+            localStreamRef.current = newStream;
+            setLocalStream(newStream);
+            setCameraMode(newMode);
+
+            // Update local video element directly
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = newStream;
+            }
+        } catch (err) {
+            console.error('Error switching camera:', err);
+            if (err.name === 'OverconstrainedError') {
+                alert('The requested camera mode is not available on this device.');
+            } else {
+                alert('Could not switch camera. Make sure you have multiple cameras and permissions are granted.');
             }
         }
     };
@@ -2640,7 +2700,7 @@ const Home = () => {
                     <div className="local-video-pip-wrapper">
                         <video
                             ref={localVideoRef}
-                            className="local-video-pip"
+                            className={`local-video-pip ${cameraMode === 'user' ? 'mirrored' : ''}`}
                             autoPlay
                             playsInline
                             muted
@@ -2682,6 +2742,16 @@ const Home = () => {
                             title={isVideoEnabled ? 'Turn off camera' : 'Turn on camera'}
                         >
                             {isVideoEnabled ? <FiVideo /> : <FiVideoOff />}
+                        </button>
+
+                        {/* Camera switch toggle */}
+                        <button
+                            id="switch-camera-btn"
+                            className="call-control-btn"
+                            onClick={switchCamera}
+                            title="Switch Camera"
+                        >
+                            <HiArrowPathRoundedSquare />
                         </button>
                     </div>
                 </div>

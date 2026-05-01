@@ -4456,9 +4456,12 @@ textarea:focus {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
+}
+
+.local-video-pip.mirrored {
     transform: scaleX(-1);
     /* mirror effect */
-    display: block;
 }
 
 .local-video-off-overlay {
