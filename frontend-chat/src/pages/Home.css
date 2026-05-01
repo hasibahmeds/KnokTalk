@@ -4042,7 +4042,8 @@ textarea:focus {
 
 .header-dropdown-menu {
     position: absolute;
-    top: calc(100% + 8px);
+    /* top: calc(100% + 8px); */
+    top: calc(100% + 9px);
     right: 0;
     min-width: 150px;
     background: var(--background-sidebar);
