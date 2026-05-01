@@ -158,6 +158,7 @@ const Home = () => {
     const [callDuration, setCallDuration] = useState(0);
     const [showHeaderDropdown, setShowHeaderDropdown] = useState(false);
     const [showSelectionDropdown, setShowSelectionDropdown] = useState(false);
+    const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null, icon: null, isAlert: false });
 
     // Call refs
     const peerConnectionRef = useRef(null);
@@ -688,31 +689,34 @@ const Home = () => {
     const handleRemoveAllMyMessages = async () => {
         if (!selectedChat) return;
 
-        if (!window.confirm('Are you sure you want to remove all your messages in this chat?')) {
-            return;
-        }
+        setConfirmDialog({
+            show: true,
+            message: 'Are you sure you want to remove all your messages in this chat?',
+            icon: <FiTrash2 />,
+            onConfirm: async () => {
+                try {
+                    const response = await fetch(
+                        `https://knoktalkend.onrender.com/api/messages/chat/${selectedChat._id}/user/${currentUser.uid}`,
+                        {
+                            method: 'DELETE'
+                        }
+                    );
 
-        try {
-            const response = await fetch(
-                `https://knoktalkend.onrender.com/api/messages/chat/${selectedChat._id}/user/${currentUser.uid}`,
-                {
-                    method: 'DELETE'
+                    const data = await response.json();
+                    if (data.success) {
+                        const messagesResponse = await fetch(
+                            `https://knoktalkend.onrender.com/api/messages/${selectedChat._id}`
+                        );
+                        const messagesData = await messagesResponse.json();
+                        setMessages(messagesData);
+                        alert(`Removed ${data.deletedCount} message(s)`);
+                    }
+                } catch (error) {
+                    console.error('Error removing messages:', error);
+                    alert('Failed to remove messages. Please make sure the backend server is running.');
                 }
-            );
-
-            const data = await response.json();
-            if (data.success) {
-                const messagesResponse = await fetch(
-                    `https://knoktalkend.onrender.com/api/messages/${selectedChat._id}`
-                );
-                const messagesData = await messagesResponse.json();
-                setMessages(messagesData);
-                alert(`Removed ${data.deletedCount} message(s)`);
             }
-        } catch (error) {
-            console.error('Error removing messages:', error);
-            alert('Failed to remove messages. Please make sure the backend server is running.');
-        }
+        });
     };
 
     // Edit message
@@ -826,20 +830,26 @@ const Home = () => {
         const otherUser = getOtherUser(selectedChat);
         if (!otherUser) return;
 
-        try {
-            await fetch('https://knoktalkend.onrender.com/api/users/block', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userUid: currentUser.uid,
-                    blockedUid: otherUser.uid
-                })
-            });
-            setIsBlocked(true);
-            alert(`You blocked ${otherUser.displayName || otherUser.email}`);
-        } catch (error) {
-            console.error('Error blocking user:', error);
-        }
+        setConfirmDialog({
+            show: true,
+            message: `Are you sure you want to block ${otherUser.displayName || otherUser.email}?`,
+            icon: <FiLock />,
+            onConfirm: async () => {
+                try {
+                    await fetch('https://knoktalkend.onrender.com/api/users/block', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userUid: currentUser.uid,
+                            blockedUid: otherUser.uid
+                        })
+                    });
+                    setIsBlocked(true);
+                } catch (error) {
+                    console.error('Error blocking user:', error);
+                }
+            }
+        });
     };
 
     // Unblock user
@@ -847,20 +857,26 @@ const Home = () => {
         const otherUser = getOtherUser(selectedChat);
         if (!otherUser) return;
 
-        try {
-            await fetch('https://knoktalkend.onrender.com/api/users/unblock', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userUid: currentUser.uid,
-                    blockedUid: otherUser.uid
-                })
-            });
-            setIsBlocked(false);
-            alert(`You unblocked ${otherUser.displayName || otherUser.email}`);
-        } catch (error) {
-            console.error('Error unblocking user:', error);
-        }
+        setConfirmDialog({
+            show: true,
+            message: `Are you sure you want to unblock ${otherUser.displayName || otherUser.email}?`,
+            icon: <FiUnlock />,
+            onConfirm: async () => {
+                try {
+                    await fetch('https://knoktalkend.onrender.com/api/users/unblock', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userUid: currentUser.uid,
+                            blockedUid: otherUser.uid
+                        })
+                    });
+                    setIsBlocked(false);
+                } catch (error) {
+                    console.error('Error unblocking user:', error);
+                }
+            }
+        });
     };
 
     // Handle image selection (show preview)
@@ -1395,7 +1411,12 @@ const Home = () => {
                 if (callStateRef.current === 'calling') {
                     endCall(otherUser.uid, currentUser.uid, otherUser.uid, selectedChat._id, 0);
                     cleanupCall();
-                    alert('No answer. The call timed out.');
+                    setConfirmDialog({
+                        show: true,
+                        message: 'No answer. The call timed out.',
+                        icon: <FiPhoneOff />,
+                        isAlert: true
+                    });
                 }
             }, 30000);
         } catch (err) {
@@ -1524,7 +1545,7 @@ const Home = () => {
             });
 
             const newVideoTrack = newStream.getVideoTracks()[0];
-            
+
             // 4. Update the enabled state based on current UI toggle
             newVideoTrack.enabled = isVideoEnabled;
 
@@ -1554,7 +1575,7 @@ const Home = () => {
             }
         } catch (err) {
             console.error('Error switching camera:', err);
-            
+
             // Fallback recovery: try to restart the original camera mode
             try {
                 const restartStream = await navigator.mediaDevices.getUserMedia({
@@ -1563,14 +1584,14 @@ const Home = () => {
                 });
                 const restartVideoTrack = restartStream.getVideoTracks()[0];
                 const audioTrack = localStreamRef.current?.getAudioTracks()[0];
-                
+
                 const recoveredStream = new MediaStream([restartVideoTrack]);
                 if (audioTrack) recoveredStream.addTrack(audioTrack);
-                
+
                 localStreamRef.current = recoveredStream;
                 setLocalStream(recoveredStream);
                 if (localVideoRef.current) localVideoRef.current.srcObject = recoveredStream;
-                
+
                 if (peerConnectionRef.current) {
                     const videoSender = peerConnectionRef.current.getSenders().find(s => s.track && s.track.kind === 'video');
                     if (videoSender) await videoSender.replaceTrack(restartVideoTrack);
@@ -2779,6 +2800,47 @@ const Home = () => {
                         >
                             <HiArrowPathRoundedSquare />
                         </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Modal */}
+            {confirmDialog.show && (
+                <div className="confirm-modal-overlay">
+                    <div className="confirm-modal-box">
+                        <div className="confirm-modal-icon">
+                            {confirmDialog.icon || <FiLock />}
+                        </div>
+                        <h3>Confirmation</h3>
+                        <p>{confirmDialog.message}</p>
+                        <div className="confirm-modal-actions">
+                            {confirmDialog.isAlert ? (
+                                <button
+                                    className="confirm-btn yes"
+                                    onClick={() => setConfirmDialog({ show: false, message: '', onConfirm: null, icon: null, isAlert: false })}
+                                >
+                                    OK
+                                </button>
+                            ) : (
+                                <>
+                                    <button
+                                        className="confirm-btn yes"
+                                        onClick={() => {
+                                            if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+                                            setConfirmDialog({ show: false, message: '', onConfirm: null, icon: null, isAlert: false });
+                                        }}
+                                    >
+                                        Yes
+                                    </button>
+                                    <button
+                                        className="confirm-btn no"
+                                        onClick={() => setConfirmDialog({ show: false, message: '', onConfirm: null, icon: null, isAlert: false })}
+                                    >
+                                        No
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
