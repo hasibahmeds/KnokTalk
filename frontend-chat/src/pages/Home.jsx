@@ -3,7 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import {
     FiSend, FiImage, FiPaperclip, FiMoreVertical,
-    FiTrash2, FiCheck, FiX, FiUserPlus,
+    FiTrash2, FiCheck, FiX, FiUserPlus, FiUserMinus, FiCheckCircle,
     FiMessageCircle, FiUsers, FiSearch, FiLogOut, FiEdit,
     FiLock, FiUnlock, FiMenu, FiSmile, FiDownload,
     FiMoreHorizontal, FiMic, FiPlay, FiPause,
@@ -644,45 +644,48 @@ const Home = () => {
 
 
     // Delete messages (bulk support)
-    const handleDeleteMessages = async (messageIds) => {
+    const handleDeleteMessages = (messageIds) => {
         if (!messageIds || (Array.isArray(messageIds) && messageIds.length === 0)) return;
         const idsToDelete = Array.isArray(messageIds) ? messageIds : [messageIds];
 
-        if (!window.confirm(`Are you sure you want to delete ${idsToDelete.length} message(s)?`)) {
-            return;
-        }
+        setConfirmDialog({
+            show: true,
+            message: `Are you sure you want to delete ${idsToDelete.length} message(s)?`,
+            icon: <FiTrash2 />,
+            onConfirm: async () => {
+                const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
 
-        const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
+                try {
+                    const response = await fetch('https://knoktalkend.onrender.com/api/messages/bulk-delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ messageIds: idsToDelete })
+                    });
 
-        try {
-            const response = await fetch('https://knoktalkend.onrender.com/api/messages/bulk-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messageIds: idsToDelete })
-            });
-
-            if (response.ok) {
-                setMessages(prev => prev.map(msg => {
-                    if (idsToDelete.includes(msg._id)) {
-                        let newContent = 'This message was deleted';
-                        if (msg.messageType === 'call') {
-                            if (msg.content.includes('Missed')) {
-                                newContent = 'Missed: This message was deleted';
-                            } else {
-                                newContent = 'Video Call: This message was deleted';
+                    if (response.ok) {
+                        setMessages(prev => prev.map(msg => {
+                            if (idsToDelete.includes(msg._id)) {
+                                let newContent = 'This message was deleted';
+                                if (msg.messageType === 'call') {
+                                    if (msg.content.includes('Missed')) {
+                                        newContent = 'Missed: This message was deleted';
+                                    } else {
+                                        newContent = 'Video Call: This message was deleted';
+                                    }
+                                }
+                                return { ...msg, isDeleted: true, content: newContent };
                             }
-                        }
-                        return { ...msg, isDeleted: true, content: newContent };
+                            return msg;
+                        }));
+                        idsToDelete.forEach(id => sendDeletedMessage(receiver.uid, id));
+                        clearSelection();
+                        setShowMessageMenu(null);
                     }
-                    return msg;
-                }));
-                idsToDelete.forEach(id => sendDeletedMessage(receiver.uid, id));
-                clearSelection();
-                setShowMessageMenu(null);
+                } catch (error) {
+                    console.error('Error deleting messages:', error);
+                }
             }
-        } catch (error) {
-            console.error('Error deleting messages:', error);
-        }
+        });
     };
 
     // Remove all my messages in the chat
@@ -767,7 +770,12 @@ const Home = () => {
                     toUid: user.uid
                 })
             });
-            alert('Friend request sent!');
+            setConfirmDialog({
+                show: true,
+                message: 'Friend request sent!',
+                icon: <FiCheckCircle />,
+                isAlert: true
+            });
         } catch (error) {
             console.error('Error sending friend request:', error);
         }
@@ -1121,39 +1129,53 @@ const Home = () => {
     };
 
     // Remove friend
-    const handleRemoveFriend = async (friendUid) => {
-        if (!window.confirm('Are you sure you want to remove this friend?')) {
-            return;
-        }
-        try {
-            const response = await fetch('https://knoktalkend.onrender.com/api/users/remove-friend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userUid: currentUser.uid,
-                    friendUid
-                })
-            });
-            const data = await response.json();
-            if (data.success) {
-                fetchDbUser(currentUser.uid);
-                const chatResponse = await fetch(`https://knoktalkend.onrender.com/api/chats/${currentUser.uid}`);
-                const chatData = await chatResponse.json();
-                setChats(chatData);
-                if (selectedChat) {
-                    const otherUser = selectedChat.participants.find(p => p.uid !== currentUser.uid);
-                    if (otherUser && otherUser.uid === friendUid) {
-                        setSelectedChat(null);
-                        setMessages([]);
+    const handleRemoveFriend = (friendUid) => {
+        setConfirmDialog({
+            show: true,
+            message: 'Are you sure you want to remove this friend?',
+            icon: <FiUserMinus />,
+            onConfirm: async () => {
+                try {
+                    const response = await fetch('https://knoktalkend.onrender.com/api/users/remove-friend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userUid: currentUser.uid,
+                            friendUid
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        fetchDbUser(currentUser.uid);
+                        const chatResponse = await fetch(`https://knoktalkend.onrender.com/api/chats/${currentUser.uid}`);
+                        const chatData = await chatResponse.json();
+                        setChats(chatData);
+                        if (selectedChat) {
+                            const otherUser = selectedChat.participants.find(p => p.uid !== currentUser.uid);
+                            if (otherUser && otherUser.uid === friendUid) {
+                                setSelectedChat(null);
+                                setMessages([]);
+                            }
+                        }
+                    } else {
+                        setConfirmDialog({
+                            show: true,
+                            message: data.error || 'Failed to remove friend',
+                            icon: <FiX />,
+                            isAlert: true
+                        });
                     }
+                } catch (error) {
+                    console.error('Error removing friend:', error);
+                    setConfirmDialog({
+                        show: true,
+                        message: 'Failed to remove friend. Please make sure the backend server is running.',
+                        icon: <FiX />,
+                        isAlert: true
+                    });
                 }
-            } else {
-                alert(data.error || 'Failed to remove friend');
             }
-        } catch (error) {
-            console.error('Error removing friend:', error);
-            alert('Failed to remove friend. Please make sure the backend server is running and restarted.');
-        }
+        });
     };
 
     // Filter chats

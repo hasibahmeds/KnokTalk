@@ -4042,7 +4042,8 @@ textarea:focus {
 
 .header-dropdown-menu {
     position: absolute;
-    top: calc(100% + 8px);
+    /* top: calc(100% + 8px); */
+    top: calc(100% + 9px);
     right: 0;
     min-width: 150px;
     background: var(--background-sidebar);
@@ -5062,11 +5063,23 @@ textarea:focus {
 }
 
 @keyframes fadeInModal {
-    from { opacity: 0; }
-    to { opacity: 1; }
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
 }
 
 @keyframes slideUpModal {
-    from { opacity: 0; transform: translateY(20px); }
-    to { opacity: 1; transform: translateY(0); }
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
 }

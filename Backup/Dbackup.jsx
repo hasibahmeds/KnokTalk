@@ -3,13 +3,14 @@ import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import {
     FiSend, FiImage, FiPaperclip, FiMoreVertical,
-    FiTrash2, FiCheck, FiX, FiUserPlus,
+    FiTrash2, FiCheck, FiX, FiUserPlus, FiUserMinus, FiCheckCircle,
     FiMessageCircle, FiUsers, FiSearch, FiLogOut, FiEdit,
     FiLock, FiUnlock, FiMenu, FiSmile, FiDownload,
     FiMoreHorizontal, FiMic, FiPlay, FiPause,
     FiVideo, FiVideoOff, FiMicOff, FiPhoneOff, FiPhone,
     FiChevronDown, FiChevronUp, FiPhoneIncoming, FiPhoneCall, FiCornerUpLeft
 } from 'react-icons/fi';
+import { HiArrowPathRoundedSquare } from "react-icons/hi2";
 import { PiPlayCircleDuotone, PiPauseCircleDuotone } from "react-icons/pi";
 import EmojiPicker from '../components/EmojiPicker';
 import './Home.css';
@@ -152,10 +153,12 @@ const Home = () => {
     const [remoteStream, setRemoteStream] = useState(null);
     const [isVideoEnabled, setIsVideoEnabled] = useState(true);
     const [isMicMuted, setIsMicMuted] = useState(false);
+    const [cameraMode, setCameraMode] = useState('user'); // 'user' (front) | 'environment' (back)
     const [activeCallUser, setActiveCallUser] = useState(null);
     const [callDuration, setCallDuration] = useState(0);
     const [showHeaderDropdown, setShowHeaderDropdown] = useState(false);
     const [showSelectionDropdown, setShowSelectionDropdown] = useState(false);
+    const [confirmDialog, setConfirmDialog] = useState({ show: false, message: '', onConfirm: null, icon: null, isAlert: false });
 
     // Call refs
     const peerConnectionRef = useRef(null);
@@ -641,76 +644,82 @@ const Home = () => {
 
 
     // Delete messages (bulk support)
-    const handleDeleteMessages = async (messageIds) => {
+    const handleDeleteMessages = (messageIds) => {
         if (!messageIds || (Array.isArray(messageIds) && messageIds.length === 0)) return;
         const idsToDelete = Array.isArray(messageIds) ? messageIds : [messageIds];
 
-        if (!window.confirm(`Are you sure you want to delete ${idsToDelete.length} message(s)?`)) {
-            return;
-        }
+        setConfirmDialog({
+            show: true,
+            message: `Are you sure you want to delete ${idsToDelete.length} message(s)?`,
+            icon: <FiTrash2 />,
+            onConfirm: async () => {
+                const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
 
-        const receiver = selectedChat.participants.find(p => p.uid !== currentUser.uid);
+                try {
+                    const response = await fetch('https://knoktalkend.onrender.com/api/messages/bulk-delete', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ messageIds: idsToDelete })
+                    });
 
-        try {
-            const response = await fetch('https://knoktalkend.onrender.com/api/messages/bulk-delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ messageIds: idsToDelete })
-            });
-
-            if (response.ok) {
-                setMessages(prev => prev.map(msg => {
-                    if (idsToDelete.includes(msg._id)) {
-                        let newContent = 'This message was deleted';
-                        if (msg.messageType === 'call') {
-                            if (msg.content.includes('Missed')) {
-                                newContent = 'Missed: This message was deleted';
-                            } else {
-                                newContent = 'Video Call: This message was deleted';
+                    if (response.ok) {
+                        setMessages(prev => prev.map(msg => {
+                            if (idsToDelete.includes(msg._id)) {
+                                let newContent = 'This message was deleted';
+                                if (msg.messageType === 'call') {
+                                    if (msg.content.includes('Missed')) {
+                                        newContent = 'Missed: This message was deleted';
+                                    } else {
+                                        newContent = 'Video Call: This message was deleted';
+                                    }
+                                }
+                                return { ...msg, isDeleted: true, content: newContent };
                             }
-                        }
-                        return { ...msg, isDeleted: true, content: newContent };
+                            return msg;
+                        }));
+                        idsToDelete.forEach(id => sendDeletedMessage(receiver.uid, id));
+                        clearSelection();
+                        setShowMessageMenu(null);
                     }
-                    return msg;
-                }));
-                idsToDelete.forEach(id => sendDeletedMessage(receiver.uid, id));
-                clearSelection();
-                setShowMessageMenu(null);
+                } catch (error) {
+                    console.error('Error deleting messages:', error);
+                }
             }
-        } catch (error) {
-            console.error('Error deleting messages:', error);
-        }
+        });
     };
 
     // Remove all my messages in the chat
     const handleRemoveAllMyMessages = async () => {
         if (!selectedChat) return;
 
-        if (!window.confirm('Are you sure you want to remove all your messages in this chat?')) {
-            return;
-        }
+        setConfirmDialog({
+            show: true,
+            message: 'Are you sure you want to remove all your messages in this chat?',
+            icon: <FiTrash2 />,
+            onConfirm: async () => {
+                try {
+                    const response = await fetch(
+                        `https://knoktalkend.onrender.com/api/messages/chat/${selectedChat._id}/user/${currentUser.uid}`,
+                        {
+                            method: 'DELETE'
+                        }
+                    );
 
-        try {
-            const response = await fetch(
-                `https://knoktalkend.onrender.com/api/messages/chat/${selectedChat._id}/user/${currentUser.uid}`,
-                {
-                    method: 'DELETE'
+                    const data = await response.json();
+                    if (data.success) {
+                        const messagesResponse = await fetch(
+                            `https://knoktalkend.onrender.com/api/messages/${selectedChat._id}`
+                        );
+                        const messagesData = await messagesResponse.json();
+                        setMessages(messagesData);
+                        alert(`Removed ${data.deletedCount} message(s)`);
+                    }
+                } catch (error) {
+                    console.error('Error removing messages:', error);
+                    alert('Failed to remove messages. Please make sure the backend server is running.');
                 }
-            );
-
-            const data = await response.json();
-            if (data.success) {
-                const messagesResponse = await fetch(
-                    `https://knoktalkend.onrender.com/api/messages/${selectedChat._id}`
-                );
-                const messagesData = await messagesResponse.json();
-                setMessages(messagesData);
-                alert(`Removed ${data.deletedCount} message(s)`);
             }
-        } catch (error) {
-            console.error('Error removing messages:', error);
-            alert('Failed to remove messages. Please make sure the backend server is running.');
-        }
+        });
     };
 
     // Edit message
@@ -761,7 +770,12 @@ const Home = () => {
                     toUid: user.uid
                 })
             });
-            alert('Friend request sent!');
+            setConfirmDialog({
+                show: true,
+                message: 'Friend request sent!',
+                icon: <FiCheckCircle />,
+                isAlert: true
+            });
         } catch (error) {
             console.error('Error sending friend request:', error);
         }
@@ -824,20 +838,26 @@ const Home = () => {
         const otherUser = getOtherUser(selectedChat);
         if (!otherUser) return;
 
-        try {
-            await fetch('https://knoktalkend.onrender.com/api/users/block', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userUid: currentUser.uid,
-                    blockedUid: otherUser.uid
-                })
-            });
-            setIsBlocked(true);
-            alert(`You blocked ${otherUser.displayName || otherUser.email}`);
-        } catch (error) {
-            console.error('Error blocking user:', error);
-        }
+        setConfirmDialog({
+            show: true,
+            message: `Are you sure you want to block ${otherUser.displayName || otherUser.email}?`,
+            icon: <FiLock />,
+            onConfirm: async () => {
+                try {
+                    await fetch('https://knoktalkend.onrender.com/api/users/block', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userUid: currentUser.uid,
+                            blockedUid: otherUser.uid
+                        })
+                    });
+                    setIsBlocked(true);
+                } catch (error) {
+                    console.error('Error blocking user:', error);
+                }
+            }
+        });
     };
 
     // Unblock user
@@ -845,20 +865,26 @@ const Home = () => {
         const otherUser = getOtherUser(selectedChat);
         if (!otherUser) return;
 
-        try {
-            await fetch('https://knoktalkend.onrender.com/api/users/unblock', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userUid: currentUser.uid,
-                    blockedUid: otherUser.uid
-                })
-            });
-            setIsBlocked(false);
-            alert(`You unblocked ${otherUser.displayName || otherUser.email}`);
-        } catch (error) {
-            console.error('Error unblocking user:', error);
-        }
+        setConfirmDialog({
+            show: true,
+            message: `Are you sure you want to unblock ${otherUser.displayName || otherUser.email}?`,
+            icon: <FiUnlock />,
+            onConfirm: async () => {
+                try {
+                    await fetch('https://knoktalkend.onrender.com/api/users/unblock', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userUid: currentUser.uid,
+                            blockedUid: otherUser.uid
+                        })
+                    });
+                    setIsBlocked(false);
+                } catch (error) {
+                    console.error('Error unblocking user:', error);
+                }
+            }
+        });
     };
 
     // Handle image selection (show preview)
@@ -1103,39 +1129,53 @@ const Home = () => {
     };
 
     // Remove friend
-    const handleRemoveFriend = async (friendUid) => {
-        if (!window.confirm('Are you sure you want to remove this friend?')) {
-            return;
-        }
-        try {
-            const response = await fetch('https://knoktalkend.onrender.com/api/users/remove-friend', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    userUid: currentUser.uid,
-                    friendUid
-                })
-            });
-            const data = await response.json();
-            if (data.success) {
-                fetchDbUser(currentUser.uid);
-                const chatResponse = await fetch(`https://knoktalkend.onrender.com/api/chats/${currentUser.uid}`);
-                const chatData = await chatResponse.json();
-                setChats(chatData);
-                if (selectedChat) {
-                    const otherUser = selectedChat.participants.find(p => p.uid !== currentUser.uid);
-                    if (otherUser && otherUser.uid === friendUid) {
-                        setSelectedChat(null);
-                        setMessages([]);
+    const handleRemoveFriend = (friendUid) => {
+        setConfirmDialog({
+            show: true,
+            message: 'Are you sure you want to remove this friend?',
+            icon: <FiUserMinus />,
+            onConfirm: async () => {
+                try {
+                    const response = await fetch('https://knoktalkend.onrender.com/api/users/remove-friend', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            userUid: currentUser.uid,
+                            friendUid
+                        })
+                    });
+                    const data = await response.json();
+                    if (data.success) {
+                        fetchDbUser(currentUser.uid);
+                        const chatResponse = await fetch(`https://knoktalkend.onrender.com/api/chats/${currentUser.uid}`);
+                        const chatData = await chatResponse.json();
+                        setChats(chatData);
+                        if (selectedChat) {
+                            const otherUser = selectedChat.participants.find(p => p.uid !== currentUser.uid);
+                            if (otherUser && otherUser.uid === friendUid) {
+                                setSelectedChat(null);
+                                setMessages([]);
+                            }
+                        }
+                    } else {
+                        setConfirmDialog({
+                            show: true,
+                            message: data.error || 'Failed to remove friend',
+                            icon: <FiX />,
+                            isAlert: true
+                        });
                     }
+                } catch (error) {
+                    console.error('Error removing friend:', error);
+                    setConfirmDialog({
+                        show: true,
+                        message: 'Failed to remove friend. Please make sure the backend server is running.',
+                        icon: <FiX />,
+                        isAlert: true
+                    });
                 }
-            } else {
-                alert(data.error || 'Failed to remove friend');
             }
-        } catch (error) {
-            console.error('Error removing friend:', error);
-            alert('Failed to remove friend. Please make sure the backend server is running and restarted.');
-        }
+        });
     };
 
     // Filter chats
@@ -1306,6 +1346,7 @@ const Home = () => {
         setRemoteStream(null);
         setIsVideoEnabled(true);
         setIsMicMuted(false);
+        setCameraMode('user');
         setActiveCallUser(null);
         setCallDuration(0);
     };
@@ -1392,7 +1433,12 @@ const Home = () => {
                 if (callStateRef.current === 'calling') {
                     endCall(otherUser.uid, currentUser.uid, otherUser.uid, selectedChat._id, 0);
                     cleanupCall();
-                    alert('No answer. The call timed out.');
+                    setConfirmDialog({
+                        show: true,
+                        message: 'No answer. The call timed out.',
+                        icon: <FiPhoneOff />,
+                        isAlert: true
+                    });
                 }
             }, 30000);
         } catch (err) {
@@ -1494,6 +1540,89 @@ const Home = () => {
                 audioTrack.enabled = !audioTrack.enabled;
                 setIsMicMuted(!audioTrack.enabled);
             }
+        }
+    };
+
+    const switchCamera = async () => {
+        if (!localStreamRef.current || callState === 'idle') return;
+
+        const newMode = cameraMode === 'user' ? 'environment' : 'user';
+
+        try {
+            // 1. Get existing tracks
+            const currentTracks = localStreamRef.current.getTracks();
+            const audioTrack = currentTracks.find(t => t.kind === 'audio');
+            const videoTrack = currentTracks.find(t => t.kind === 'video');
+
+            // 2. Stop old video track (essential for many mobile devices to release hardware)
+            if (videoTrack) {
+                videoTrack.stop();
+            }
+
+            // 3. Request new stream with the new facingMode
+            // We use { ideal } to avoid OverconstrainedError if 'environment' is not exactly matched
+            const newStream = await navigator.mediaDevices.getUserMedia({
+                video: { facingMode: { ideal: newMode } },
+                audio: false // Don't request audio again to avoid hardware conflicts/glitches
+            });
+
+            const newVideoTrack = newStream.getVideoTracks()[0];
+
+            // 4. Update the enabled state based on current UI toggle
+            newVideoTrack.enabled = isVideoEnabled;
+
+            // 5. Replace the track in the peer connection for the remote user
+            if (peerConnectionRef.current) {
+                const senders = peerConnectionRef.current.getSenders();
+                const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+                if (videoSender) {
+                    await videoSender.replaceTrack(newVideoTrack);
+                }
+            }
+
+            // 6. Create a new local stream with the new video track and PRESERVED audio track
+            const combinedStream = new MediaStream([newVideoTrack]);
+            if (audioTrack) {
+                combinedStream.addTrack(audioTrack);
+            }
+
+            // 7. Update refs and state
+            localStreamRef.current = combinedStream;
+            setLocalStream(combinedStream);
+            setCameraMode(newMode);
+
+            // 8. Update local video element directly
+            if (localVideoRef.current) {
+                localVideoRef.current.srcObject = combinedStream;
+            }
+        } catch (err) {
+            console.error('Error switching camera:', err);
+
+            // Fallback recovery: try to restart the original camera mode
+            try {
+                const restartStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: { ideal: cameraMode } },
+                    audio: false
+                });
+                const restartVideoTrack = restartStream.getVideoTracks()[0];
+                const audioTrack = localStreamRef.current?.getAudioTracks()[0];
+
+                const recoveredStream = new MediaStream([restartVideoTrack]);
+                if (audioTrack) recoveredStream.addTrack(audioTrack);
+
+                localStreamRef.current = recoveredStream;
+                setLocalStream(recoveredStream);
+                if (localVideoRef.current) localVideoRef.current.srcObject = recoveredStream;
+
+                if (peerConnectionRef.current) {
+                    const videoSender = peerConnectionRef.current.getSenders().find(s => s.track && s.track.kind === 'video');
+                    if (videoSender) await videoSender.replaceTrack(restartVideoTrack);
+                }
+            } catch (restartErr) {
+                console.error('Recovery failed:', restartErr);
+            }
+
+            alert('Could not switch camera. This device may not support the back camera or permissions are restricted.');
         }
     };
     // ─────────────────────────────────────────────────────────────────────────
@@ -2339,14 +2468,14 @@ const Home = () => {
                                                         >
                                                             <FiMic />
                                                         </button>
-                                                        <button
+                                                        {/* <button
                                                             type="button"
                                                             className="attach-btn-unified"
                                                             onClick={() => imageInputRef.current?.click()}
                                                             title="Attach image"
                                                         >
                                                             <FiImage />
-                                                        </button>
+                                                        </button> */}
 
                                                         <button type="submit" className="send-btn-unified" title="Send message">
                                                             <FiSend />
@@ -2640,7 +2769,7 @@ const Home = () => {
                     <div className="local-video-pip-wrapper">
                         <video
                             ref={localVideoRef}
-                            className="local-video-pip"
+                            className={`local-video-pip ${cameraMode === 'user' ? 'mirrored' : ''}`}
                             autoPlay
                             playsInline
                             muted
@@ -2683,6 +2812,57 @@ const Home = () => {
                         >
                             {isVideoEnabled ? <FiVideo /> : <FiVideoOff />}
                         </button>
+
+                        {/* Camera switch toggle */}
+                        <button
+                            id="switch-camera-btn"
+                            className="call-control-btn"
+                            onClick={switchCamera}
+                            title="Switch Camera"
+                        >
+                            <HiArrowPathRoundedSquare />
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Confirmation Modal */}
+            {confirmDialog.show && (
+                <div className="confirm-modal-overlay">
+                    <div className="confirm-modal-box">
+                        <div className="confirm-modal-icon">
+                            {confirmDialog.icon || <FiLock />}
+                        </div>
+                        <h3>Confirmation</h3>
+                        <p>{confirmDialog.message}</p>
+                        <div className="confirm-modal-actions">
+                            {confirmDialog.isAlert ? (
+                                <button
+                                    className="confirm-btn yes"
+                                    onClick={() => setConfirmDialog({ show: false, message: '', onConfirm: null, icon: null, isAlert: false })}
+                                >
+                                    OK
+                                </button>
+                            ) : (
+                                <>
+                                    <button
+                                        className="confirm-btn yes"
+                                        onClick={() => {
+                                            if (confirmDialog.onConfirm) confirmDialog.onConfirm();
+                                            setConfirmDialog({ show: false, message: '', onConfirm: null, icon: null, isAlert: false });
+                                        }}
+                                    >
+                                        Yes
+                                    </button>
+                                    <button
+                                        className="confirm-btn no"
+                                        onClick={() => setConfirmDialog({ show: false, message: '', onConfirm: null, icon: null, isAlert: false })}
+                                    >
+                                        No
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}
