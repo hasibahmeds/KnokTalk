@@ -2350,7 +2350,7 @@ const Home = () => {
 
                                             <div className="message-info">
                                                 <span className="message-date">{new Date(msg.createdAt).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>
-                                                <span className="message-time">{new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })}</span>
+                                                <span className="message-time">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                                             </div>
                                         </div>
                                         {msg.isEdited && <div className="edited-label">(Edited)</div>}
