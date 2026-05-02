@@ -89,6 +89,44 @@ const AudioPlayer = ({ src, durationLabel, isSentByMe }) => {
     );
 };
 
+const formatMessageTime = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        return date.toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    } catch (e) {
+        return '';
+    }
+};
+
+const formatMessageDate = (dateStr) => {
+    if (!dateStr) return '';
+    try {
+        const date = new Date(dateStr);
+        const now = new Date();
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+
+        if (date.toDateString() === now.toDateString()) {
+            return 'Today';
+        } else if (date.toDateString() === yesterday.toDateString()) {
+            return 'Yesterday';
+        } else {
+            return date.toLocaleDateString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined
+            });
+        }
+    } catch (e) {
+        return '';
+    }
+};
+
 
 const Home = () => {
     const { currentUser, dbUser, logout, fetchDbUser } = useAuth();
@@ -2163,7 +2201,7 @@ const Home = () => {
                                         <div className="chat-search-dropdown-results">
                                             {searchResults.map((msg, idx) => {
                                                 const senderName = msg.sender?.displayName || msg.sender?.email || 'User';
-                                                const date = new Date(msg.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                                                const date = formatMessageDate(msg.createdAt);
 
                                                 // Highlight logic
                                                 const escapedHighlightTerm = chatSearchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -2188,7 +2226,7 @@ const Home = () => {
                                                         <div className="search-dropdown-content">
                                                             <div className="search-dropdown-header">
                                                                 <span className="search-dropdown-name">{senderName}</span>
-                                                                <span className="search-dropdown-date">{date}</span>
+                                                                <span className="search-dropdown-date">{date} {formatMessageTime(msg.createdAt)}</span>
                                                             </div>
                                                             <div className="search-dropdown-text">
                                                                 {parts.map((part, i) =>
@@ -2335,7 +2373,9 @@ const Home = () => {
                                                                 {msg.content.includes('Missed') ? 'Missed Video Call' : 'Video Call'}
                                                             </span>
                                                             <span className="call-duration-text">
-                                                                {msg.content.split(': ')[1] || msg.content}
+                                                                {msg.content.includes('Missed')
+                                                                    ? `at ${formatMessageTime(msg.createdAt)}`
+                                                                    : (msg.content.split(': ')[1] || msg.content)}
                                                             </span>
                                                         </div>
                                                     </div>
@@ -2349,8 +2389,8 @@ const Home = () => {
                                             )}
 
                                             <div className="message-info">
-                                                <span className="message-date">{new Date(msg.createdAt).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' })}</span>
-                                                <span className="message-time">{new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                                                <span className="message-date">{formatMessageDate(msg.createdAt)}</span>
+                                                <span className="message-time">{formatMessageTime(msg.createdAt)}</span>
                                             </div>
                                         </div>
                                         {msg.isEdited && <div className="edited-label">(Edited)</div>}

@@ -219,8 +219,7 @@ io.on('connection', (socket) => {
 
             let content = '';
             if (status === 'Missed') {
-                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-                content = `Missed video call at ${timeStr}`;
+                content = `Missed video call`;
             } else {
                 const hours = Math.floor(duration / 3600);
                 const minutes = Math.floor((duration % 3600) / 60);
