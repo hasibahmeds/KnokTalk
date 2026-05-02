@@ -23,7 +23,7 @@ const server = http.createServer(app);
 // Socket.io setup
 const io = new Server(server, {
     cors: {
-        origin: "https://knoktalk.onrender.com",
+        origin: "http://localhost:5173",
         methods: ["GET", "POST"]
     }
 });
@@ -219,7 +219,8 @@ io.on('connection', (socket) => {
 
             let content = '';
             if (status === 'Missed') {
-                content = `Missed video call`;
+                const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                content = `Missed video call at ${timeStr}`;
             } else {
                 const hours = Math.floor(duration / 3600);
                 const minutes = Math.floor((duration % 3600) / 60);
